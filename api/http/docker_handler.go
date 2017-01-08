@@ -4,6 +4,7 @@ import (
 	"github.com/portainer/portainer"
 
 	"encoding/json"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -167,6 +168,13 @@ func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				w.Header().Add(k, v)
 			}
 		}
+	}
+
+	if !strings.HasPrefix(res.Header.Get("Content-Type"), "application/json") {
+		if _, err := io.Copy(w, res.Body); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
 	}
 
 	var jsonData interface{}
