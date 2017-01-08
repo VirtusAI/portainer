@@ -3,7 +3,7 @@ package http
 import (
 	"github.com/portainer/portainer"
 
-	"io"
+	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -132,6 +132,19 @@ type unixSocketHandler struct {
 	path string
 }
 
+func clearEnv(m *map[string]interface{}) {
+	for k, v := range *m {
+		if k == "Env" {
+			delete(*m, k)
+		} else {
+			switch vv := v.(type) {
+				case map[string]interface{}:
+					clearEnv(&vv)
+			}
+		}
+	}
+}
+
 func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := net.Dial("unix", h.path)
 	if err != nil {
@@ -149,11 +162,28 @@ func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer res.Body.Close()
 
 	for k, vv := range res.Header {
-		for _, v := range vv {
-			w.Header().Add(k, v)
+		if k != "Content-Length" {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
 		}
 	}
-	if _, err := io.Copy(w, res.Body); err != nil {
+
+	var jsonData interface{}
+
+	dec := json.NewDecoder(res.Body)
+	if err := dec.Decode(&jsonData); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return	
+	}
+
+	switch jsonDataTyped := jsonData.(type) {
+		case map[string]interface{}:
+			clearEnv(&jsonDataTyped)
+	}
+
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(&jsonData); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
