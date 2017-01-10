@@ -11,6 +11,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -146,6 +147,27 @@ func clearEnv(m *map[string]interface{}) {
 	}
 }
 
+func stringSlicePos(slice []interface{}, predicate func(value string) bool) int {
+	for i, v := range slice {
+		if (predicate(v.(string))) {
+			return i
+		}
+	}
+	return -1
+}
+
+func clearProcessCommandArgs(m *map[string]interface{}) {
+	titles := (*m)["Titles"].([]interface{})
+	cmdIdx := stringSlicePos(titles, func(value string) bool { return value == "CMD" || value == "COMMAND" })
+	if cmdIdx != -1 {
+		processes := (*m)["Processes"].([]interface{})
+		for _, process := range processes {
+			processTyped := process.([]interface{})
+			processTyped[cmdIdx] = strings.SplitN(processTyped[cmdIdx].(string), " ", 2)[0]
+		}
+	}
+}
+
 func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := net.Dial("unix", h.path)
 	if err != nil {
@@ -188,6 +210,15 @@ func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch jsonDataTyped := jsonData.(type) {
 		case map[string]interface{}:
 			clearEnv(&jsonDataTyped)
+
+			matched, err := regexp.MatchString("/containers/[0-9a-fA-F]+/top$", r.URL.Path)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return	
+			}
+			if matched {
+				clearProcessCommandArgs(&jsonDataTyped)
+			}
 	}
 
 	enc := json.NewEncoder(w)
