@@ -169,7 +169,7 @@ func clearProcessCommandArgs(m *map[string]interface{}) {
 }
 
 func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
+	if r.Method != http.MethodGet {
 		http.Error(w, "Only GET requests allowed", http.StatusForbidden)
 		return
 	}
