@@ -4,6 +4,7 @@ import (
 	"github.com/portainer/portainer"
 
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -170,13 +171,13 @@ func clearProcessCommandArgs(m *map[string]interface{}) {
 
 func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Only GET requests allowed", http.StatusForbidden)
+		Error(w, errors.New("Only GET requests allowed"), http.StatusForbidden, nil)
 		return
 	}
 
 	conn, err := net.Dial("unix", h.path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		Error(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	c := httputil.NewClientConn(conn, nil)
@@ -184,7 +185,7 @@ func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	res, err := c.Do(r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		Error(w, err, http.StatusInternalServerError, nil)
 		return
 	}
 	defer res.Body.Close()
@@ -199,7 +200,7 @@ func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if !strings.HasPrefix(res.Header.Get("Content-Type"), "application/json") {
 		if _, err := io.Copy(w, res.Body); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			Error(w, err, http.StatusInternalServerError, nil)
 		}
 		return
 	}
@@ -208,7 +209,7 @@ func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	dec := json.NewDecoder(res.Body)
 	if err := dec.Decode(&jsonData); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		Error(w, err, http.StatusInternalServerError, nil)
 		return	
 	}
 
@@ -218,7 +219,7 @@ func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			matched, err := regexp.MatchString("/containers/[0-9a-fA-F]+/top$", r.URL.Path)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				Error(w, err, http.StatusInternalServerError, nil)
 				return	
 			}
 			if matched {
@@ -228,6 +229,6 @@ func (h *unixSocketHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(&jsonData); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		Error(w, err, http.StatusInternalServerError, nil)
 	}
 }
